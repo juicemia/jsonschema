@@ -26,12 +26,12 @@ func loadTypeFromPackageFile(t, pf string) {
 
 	switch typ := ts.Type.(type) {
 	case *ast.StructType:
-		processStruct(typ)
+		processStruct(typ, fset)
 	}
 
 }
 
-func processStruct(st *ast.StructType) {
+func processStruct(st *ast.StructType, fset *token.FileSet) {
 	schema := Type{
 		Type:       "object",
 		Properties: map[string]*Type{},
@@ -39,7 +39,11 @@ func processStruct(st *ast.StructType) {
 
 	fields := st.Fields
 	for _, fld := range fields.List {
-		ftyp := Type{}
+		t := getNodeContent(fld.Type, fset)
+
+		ftyp := Type{
+			Type: t,
+		}
 		schema.Properties[parseJSONTag(fld.Tag.Value)] = &ftyp
 	}
 
@@ -61,4 +65,23 @@ func parseJSONTag(tag string) string {
 	}
 
 	return ""
+}
+
+func getNodeContent(node ast.Node, fset *token.FileSet) string {
+	begin := fset.PositionFor(node.Pos(), true)
+	end := fset.PositionFor(node.End(), true)
+	spew.Dump(begin, end)
+
+	tmpf, err := os.Open(begin.Filename)
+	if err != nil {
+		panic(err)
+	}
+
+	buf := make([]byte, end.Offset-begin.Offset)
+	_, err = tmpf.ReadAt(buf, int64(begin.Offset))
+	if err != nil {
+		panic(err)
+	}
+
+	return string(buf)
 }
